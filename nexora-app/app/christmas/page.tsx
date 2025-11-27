@@ -319,13 +319,20 @@ export default function ChristmasPage() {
 
         const handleScroll = () => setScrolled(window.scrollY > 50);
         window.addEventListener('scroll', handleScroll);
-        const timer = setTimeout(() => { if (view === 'home') setMissionOpen(true); }, 8000);
+
+        // Exit Intent Trigger (instead of auto-timer)
+        const handleExitIntent = (e: MouseEvent) => {
+            if (e.clientY <= 0 && view === 'home') {
+                setMissionOpen(true);
+            }
+        };
+        document.addEventListener('mouseleave', handleExitIntent);
 
         return () => {
             document.removeEventListener("contextmenu", handleContextMenu);
             document.removeEventListener("keydown", handleKeyDown);
             window.removeEventListener('scroll', handleScroll);
-            clearTimeout(timer);
+            document.removeEventListener('mouseleave', handleExitIntent);
         };
     }, [lang, view]);
 
