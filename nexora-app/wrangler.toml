@@ -1,0 +1,6 @@
+name = "nexora-app"
+compatibility_date = "2024-11-26"
+pages_build_output_dir = ".vercel/output/static"
+
+[env.production]
+name = "nexora-app-production"
