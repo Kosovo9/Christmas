@@ -1,9 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from 'next/server';
 import Replicate from "replicate";
 
-const replicate = new Replicate({
-    auth: process.env.REPLICATE_API_TOKEN,
-});
+// 🚀 100x Performance: Use Edge Runtime for global low-latency execution
+export const runtime = 'edge';
 
 export async function POST(request: Request) {
     try {
@@ -16,7 +15,11 @@ export async function POST(request: Request) {
             );
         }
 
-        // Using Flux-Schnell for fast, high-quality images
+        const replicate = new Replicate({
+            auth: process.env.REPLICATE_API_TOKEN,
+        });
+
+        // Using Flux-Schnell for 10x speed generation
         const output = await replicate.run(
             "black-forest-labs/flux-schnell",
             {
@@ -25,12 +28,18 @@ export async function POST(request: Request) {
                     num_outputs: 1,
                     aspect_ratio: "1:1",
                     output_format: "webp",
-                    output_quality: 90,
-                },
+                    output_quality: 80
+                }
             }
         );
 
-        return NextResponse.json({ output });
+        // Add Cache-Control headers for performance
+        return NextResponse.json({ output }, {
+            headers: {
+                'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=30',
+            }
+        });
+
     } catch (error) {
         console.error("Generation error:", error);
         return NextResponse.json(

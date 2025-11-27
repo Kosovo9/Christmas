@@ -1,547 +1,1005 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import Image from "next/image";
-import { motion, AnimatePresence } from "framer-motion";
-import confetti from "canvas-confetti";
+import React, { useState, useEffect, useRef } from 'react';
 import {
-    Camera, Upload, Mic, Play, Pause, Heart, Share2,
-    Download, Lock, Sparkles, Users, Dog, Gift,
-    CreditCard, BarChart3, Link as LinkIcon, CheckCircle2,
-    Music, Volume2, VolumeX, Globe, ShieldCheck
-} from "lucide-react";
-import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
+    Camera, Instagram, Twitter, Mail, X, Menu, ChevronRight,
+    MapPin, Phone, Heart, Check, Star, Sliders, ArrowRight,
+    ChevronLeft, ChevronRight as ChevronRightIcon, Upload,
+    Wand2, CreditCard, Gift, Sparkles, Image as ImageIcon,
+    Zap, Globe, Shield, Lock, Users, DollarSign, BarChart3,
+    Bot, MessageSquare, PawPrint, UserPlus, AlertTriangle,
+    Download, LockKeyhole, FileWarning, Database, Link as LinkIcon,
+    PieChart, Wallet, RefreshCw, Music, Share2, Facebook, Smartphone,
+    PartyPopper, Mic, Video, Store, Bitcoin, Plane, Copy, Terminal,
+    Play, Pause, Loader2, User, UserCheck, Bird
+} from 'lucide-react';
+import { useUser } from "@clerk/nextjs";
+import { useRouter, useSearchParams } from "next/navigation";
 
-// Utility for Tailwind classes
-function cn(...inputs: ClassValue[]) {
-    return twMerge(clsx(inputs));
-}
+// --- URL DE MÚSICA (Royalty Free) ---
+const MUSIC_URL = "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Jingle%20Bells.mp3";
 
-// --- MOCK DATA & CONSTANTS ---
+// --- DATOS ---
+const MEGA_PROMPTS = [
+    { id: 1, title: "Navidad Cyberpunk", img: "https://images.unsplash.com/photo-1542259681-dadcd23f2f0b?auto=format&fit=crop&q=80&w=600", prompt: "Hyper-realistic portrait, futuristic Christmas in Neo-Tokyo..." },
+    { id: 2, title: "Cena Real", img: "https://images.unsplash.com/photo-1543589077-47d81606c1bf?auto=format&fit=crop&q=80&w=600", prompt: "Royal Christmas Dinner at Versailles, golden hour lighting..." },
+    { id: 3, title: "Mascota Polar", img: "https://images.unsplash.com/photo-1583337130417-3346a1be7dee?auto=format&fit=crop&q=80&w=600", prompt: "Cute golden retriever wearing an elf hat, snowy North Pole..." },
+    { id: 4, title: "Navidad Andina", img: "https://images.unsplash.com/photo-1518105779142-d975f22f1b0a?auto=format&fit=crop&q=80&w=600", prompt: "Christmas celebration in the Andes mountains, traditional ponchos..." }
+];
 
 const SUBJECTS = [
-    { id: "person", label: "1 Persona", icon: <Users className="w-5 h-5" /> },
-    { id: "couple", label: "Pareja", icon: <Heart className="w-5 h-5" /> },
-    { id: "family", label: "Familia", icon: <Users className="w-5 h-5" /> }, // Users icon is standard for groups
-    { id: "pet", label: "Mascota", icon: <Dog className="w-5 h-5" /> },
-    { id: "hybrid", label: "Humano + Mascota", icon: <Sparkles className="w-5 h-5" /> },
+    { id: 'person', icon: User, name_es: '1 Persona', name_en: '1 Person', min: 1, max: 1 },
+    { id: 'couple', icon: UserCheck, name_es: 'Pareja', name_en: 'Couple', min: 2, max: 2 },
+    { id: 'family', icon: Users, name_es: 'Familia', name_en: 'Family', min: 3, max: 10 },
+    { id: 'pet', icon: PawPrint, name_es: 'Mascota Mimada', name_en: 'Pet Only', min: 1, max: 5 },
+    { id: 'human_pet', icon: Bird, name_es: 'Mascota + Humano', name_en: 'Pet + Human', min: 2, max: 5 }
 ];
 
-const SCENARIOS = [
-    { id: "studio", label: "Estudio Navideño Lujoso", image: "https://images.unsplash.com/photo-1543589077-47d81606c1bf?auto=format&fit=crop&w=300&q=80" },
-    { id: "nyc", label: "Navidad en NYC", image: "https://images.unsplash.com/photo-1482517967863-00e15c9b44be?auto=format&fit=crop&w=300&q=80" },
-    { id: "cabin", label: "Cabaña en los Alpes", image: "https://images.unsplash.com/photo-1516728778615-2d590ea1855e?auto=format&fit=crop&w=300&q=80" },
-    { id: "cyber", label: "Cyberpunk Christmas", image: "https://images.unsplash.com/photo-1535581652167-3d6b98c36cd9?auto=format&fit=crop&w=300&q=80" },
+const ESTILOS = [
+    { id: 'nyc', name: "Navidad en NYC", img: "https://images.unsplash.com/photo-1482501157762-56897a411e05?auto=format&fit=crop&q=80&w=400" },
+    { id: 'cdmx', name: "Zócalo Festivo", img: "https://images.unsplash.com/photo-1518105779142-d975f22f1b0a?auto=format&fit=crop&q=80&w=400" },
+    { id: 'rio', name: "Verano en Río", img: "https://images.unsplash.com/photo-1483879504681-c0196ecceda5?auto=format&fit=crop&q=80&w=400" },
+    { id: 'bogota', name: "Luces de Bogotá", img: "https://images.unsplash.com/photo-1545622783-b3e8957ee0f6?auto=format&fit=crop&q=80&w=400" },
 ];
 
-const VIP_PROMPTS = [
-    { title: "Golden Hour Family", prompt: "Hyper-realistic family portrait, golden hour lighting, snowy pine forest background, matching red sweaters, 8k resolution, cinematic depth of field." },
-    { title: "Cyberpunk Santa", prompt: "Futuristic Santa Claus, neon lights, cyberpunk city background, metallic suit, glowing visor, high contrast, synthwave aesthetic." },
-    { title: "Cozy Cabin Pet", prompt: "Golden Retriever puppy sleeping by a fireplace, cozy log cabin interior, christmas stockings, warm lighting, fuzzy texture, photorealistic." },
+const PACKS = [
+    { id: 'pack_a', title: "Pack 'Elfo' (Básico)", price: "$19 USD", value: 19, features: ["5 Fotos Estáticas", "1 Estilo", "Entrega Rápida"], popular: false, eligibleForCommission: false },
+    { id: 'pack_b', title: "Pack 'Santa Latino' (Pro)", price: "$49 USD", value: 49, features: ["20 Live Photos (Video)", "Todos los Estilos", "Edición por Voz", "Prioridad"], popular: true, eligibleForCommission: true },
+    { id: 'pack_c', title: "Pack 'Familión' (VIP)", price: "$89 USD", value: 89, features: ["50 Live Photos", "Video Saludo IA", "Mascotas Incluidas", "Soporte VIP"], popular: false, eligibleForCommission: true }
 ];
 
-// --- COMPONENTS ---
+// --- TEXTOS ---
+const TRANSLATIONS = {
+    es: {
+        nav: { create: "Crear Fotos", gallery: "Galería Prompts VIP", pricing: "Precios", affiliates: "Afiliados PRO", admin: "Admin Panel", login: "Ingresar" },
+        hero: {
+            badge: "Edición Especial América & LATAM",
+            title: "Tus Fotos Navideñas,",
+            subtitles: ["Vivas y con IA.", "Mágicas y Únicas.", "En Movimiento."],
+            desc: "El primer estudio del mundo con 'Director por Voz'. Sube tus selfies y crea recuerdos en movimiento para NYC, CDMX, Bogotá o Río.",
+            cta_primary: "Probar Voz Mágica",
+            cta_secondary: "Ver Live Photos",
+        },
+        mission: {
+            fab_label: "¡Regalo Navideño!",
+            title: "Misión: Viraliza la Navidad",
+            desc: "Comparte en 5 grupos de WhatsApp y gana 1 FOTO GRATIS.",
+            progress_label: "Progreso Viral",
+            btn_wa: "Enviar a WhatsApp",
+            btn_fb: "Postear en Facebook",
+            verify_text: "Verificando impacto social...",
+            success_title: "¡Misión Cumplida!",
+            success_desc: "Código desbloqueado. ¡Aprovéchalo!",
+            btn_claim: "Canjear Premio"
+        },
+        generator: {
+            step1: "Sube tus Fotos",
+            step1_desc: "1-5 fotos (¡Se aceptan selfies casuales!)",
+            uploading: "Subiendo a Servidores Seguros...",
+            step2: "Configuración Mágica",
+            subject_label: "¿Quién o Quiénes Aparecen?",
+            qty_label: "Cantidad (Personas/Mascotas)",
+            style_label: "Escenario Mágico",
+            voice_label: "Director IA por Voz (BETA)",
+            voice_placeholder: "Ej: 'Ponnos gorros de Santa y que sea de noche en Nueva York...'",
+            voice_listening: "Escuchando...",
+            btn_generate: "Generar Recuerdos Vivos",
+            btn_processing: "Gemini imaginando tu escena...",
+            results_title: "¡Magia Pura!",
+            results_subtitle: "Tus 'Live Photos' están listas. Dale Play para ver la magia.",
+            watermark_text: "VISTA PREVIA - AI STUDIO",
+            btn_pay: "Desbloquear Todo",
+            btn_download: "Bajar Video HD",
+            processing_payment: "Conectando con banco local..."
+        },
+        affiliate: {
+            dashboard_title: "Tu Imperio Digital",
+            rule_highlight: "Regla de Oro: 30% de comisión en Packs Pro (B) o superiores.",
+            stats_clicks: "Tráfico", stats_sales: "Ventas", stats_earnings: "Ganancias (USD)",
+            table_title: "Transacciones en Vivo",
+            link_label: "Tu Link Viral",
+            copy_btn: "Copiar Link"
+        },
+        pricing: {
+            methods: "Pasarelas de Pago 360° para América",
+            local_price: "Precios ajustados por geolocalización a MXN, COP, BRL..."
+        },
+        footer: { rights: "Hecho con ❤️ para toda América." }
+    },
+    en: {
+        nav: { create: "Create Photos", gallery: "VIP Prompt Gallery", pricing: "Pricing", affiliates: "Affiliates PRO", admin: "Admin Panel", login: "Login" },
+        hero: {
+            badge: "Americas & LATAM Special Edition",
+            title: "Your Christmas Photos,",
+            subtitles: ["Alive with AI.", "Magical & Unique.", "In Motion."],
+            desc: "The world's first studio with 'Voice Director'. Upload selfies and create moving memories for NYC, CDMX, Bogota, or Rio.",
+            cta_primary: "Try Voice Magic",
+            cta_secondary: "View Live Photos",
+        },
+        mission: {
+            fab_label: "Xmas Gift!",
+            title: "Mission: Go Viral",
+            desc: "Share in 5 WhatsApp groups to earn 1 FREE PHOTO.",
+            progress_label: "Viral Progress",
+            btn_wa: "Send to WhatsApp",
+            btn_fb: "Post on Facebook",
+            verify_text: "Verifying social impact...",
+            success_title: "Mission Accomplished!",
+            success_desc: "Code unlocked. Enjoy!",
+            btn_claim: "Redeem Reward"
+        },
+        generator: {
+            step1: "Upload Photos",
+            step1_desc: "1-5 photos (Casual selfies accepted!)",
+            uploading: "Uploading to Secure Servers...",
+            step2: "Magic Configuration",
+            subject_label: "Who is in the Photo?",
+            qty_label: "Quantity (People/Pets)",
+            style_label: "Magic Scenery",
+            voice_label: "Voice AI Director (BETA)",
+            voice_placeholder: "Ex: 'Add Santa hats and make it a snowy night in NYC...'",
+            voice_listening: "Listening...",
+            btn_generate: "Generate Live Memories",
+            btn_processing: "Gemini imagining your scene...",
+            results_title: "Pure Magic!",
+            results_subtitle: "Your 'Live Photos' are ready. Press Play to see the magic.",
+            watermark_text: "PREVIEW - AI STUDIO",
+            btn_pay: "Unlock All",
+            btn_download: "Download HD Video",
+            processing_payment: "Connecting to local bank..."
+        },
+        affiliate: {
+            dashboard_title: "Your Digital Empire",
+            rule_highlight: "Golden Rule: 30% commission on Pro Packs (B) or higher.",
+            stats_clicks: "Traffic", stats_sales: "Sales", stats_earnings: "Earnings (USD)",
+            table_title: "Live Transactions",
+            link_label: "Your Viral Link",
+            copy_btn: "Copy Link"
+        },
+        pricing: {
+            methods: "360° Payment Gateways for the Americas",
+            local_price: "Prices adjusted by geolocation to MXN, COP, BRL..."
+        },
+        footer: { rights: "Made with ❤️ for the Americas." }
+    }
+};
 
-const TypewriterHero = () => {
-    const words = ["Vivas", "Mágicas", "Únicas"];
+// --- COMPONENTES AUXILIARES ---
+
+const Typewriter = ({ texts }: { texts: string[] }) => {
     const [index, setIndex] = useState(0);
-    const [text, setText] = useState("");
-    const [isDeleting, setIsDeleting] = useState(false);
+    const [subIndex, setSubIndex] = useState(0);
+    const [reverse, setReverse] = useState(false);
 
     useEffect(() => {
-        const timer = setTimeout(() => {
-            const currentWord = words[index % words.length];
-
-            if (isDeleting) {
-                setText(currentWord.substring(0, text.length - 1));
-                if (text.length === 0) {
-                    setIsDeleting(false);
-                    setIndex((prev) => prev + 1);
-                }
-            } else {
-                setText(currentWord.substring(0, text.length + 1));
-                if (text.length === currentWord.length) {
-                    setTimeout(() => setIsDeleting(true), 2000);
-                    return;
-                }
-            }
-        }, isDeleting ? 100 : 200);
-
-        return () => clearTimeout(timer);
-    }, [text, isDeleting, index, words]);
+        if (subIndex === texts[index].length + 1 && !reverse) {
+            setTimeout(() => setReverse(true), 2000); // Wait before deleting
+            return;
+        }
+        if (subIndex === 0 && reverse) {
+            setReverse(false);
+            setIndex((prev) => (prev + 1) % texts.length);
+            return;
+        }
+        const timeout = setTimeout(() => {
+            setSubIndex((prev) => prev + (reverse ? -1 : 1));
+        }, reverse ? 75 : 150);
+        return () => clearTimeout(timeout);
+    }, [subIndex, index, reverse, texts]);
 
     return (
-        <h1 className="text-5xl md:text-7xl font-bold tracking-tighter text-center mb-6">
-            Fotos Navideñas <span className="bg-clip-text text-transparent bg-gradient-to-r from-red-500 to-green-500">{text}</span>
-            <span className="animate-pulse">|</span>
-        </h1>
+        <span className="text-transparent bg-clip-text bg-gradient-to-r from-rose-400 via-red-500 to-yellow-500">
+            {texts[index].substring(0, subIndex)}
+            <span className="animate-pulse text-white">|</span>
+        </span>
     );
 };
 
-const VoiceDirector = ({ onPromptChange }: { onPromptChange: (text: string) => void }) => {
-    const [isListening, setIsListening] = useState(false);
+const VoiceVisualizer = () => (
+    <div className="flex items-center gap-1 h-6">
+        {[...Array(5)].map((_, i) => (
+            <div
+                key={i}
+                className="w-1 bg-rose-500 rounded-full animate-wave"
+                style={{ animationDelay: `${i * 0.1}s` }}
+            />
+        ))}
+        <style>{`
+      @keyframes wave {
+        0%, 100% { height: 4px; opacity: 0.5; }
+        50% { height: 16px; opacity: 1; }
+      }
+      .animate-wave { animation: wave 1s ease-in-out infinite; }
+    `}</style>
+    </div>
+);
 
-    const toggleListening = () => {
-        setIsListening(!isListening);
-        if (!isListening) {
-            // Simulate voice input
-            setTimeout(() => {
-                onPromptChange("Una foto familiar en la nieve con suéteres rojos y un perro Golden Retriever.");
-                setIsListening(false);
-            }, 3000);
-        }
-    };
-
+const Confetti = () => {
     return (
-        <div className="relative">
-            <button
-                onClick={toggleListening}
-                className={cn(
-                    "absolute right-2 top-2 p-2 rounded-full transition-all duration-300",
-                    isListening ? "bg-red-500/20 text-red-500 animate-pulse" : "hover:bg-white/10 text-gray-400"
-                )}
-            >
-                <Mic className="w-5 h-5" />
-            </button>
-            {isListening && (
-                <div className="absolute right-12 top-1/2 -translate-y-1/2 flex gap-1">
-                    {[1, 2, 3, 4].map((i) => (
-                        <motion.div
-                            key={i}
-                            animate={{ height: [10, 20, 10] }}
-                            transition={{ repeat: Infinity, duration: 0.5, delay: i * 0.1 }}
-                            className="w-1 bg-red-500 rounded-full"
-                        />
-                    ))}
-                </div>
-            )}
+        <div className="fixed inset-0 pointer-events-none z-[100] overflow-hidden">
+            {[...Array(50)].map((_, i) => (
+                <div
+                    key={i}
+                    className="absolute animate-fall"
+                    style={{
+                        left: `${Math.random() * 100}%`,
+                        top: `-5%`,
+                        backgroundColor: ['#f43f5e', '#eab308', '#22c55e', '#3b82f6'][Math.floor(Math.random() * 4)],
+                        width: '10px',
+                        height: '10px',
+                        animationDuration: `${Math.random() * 3 + 2}s`,
+                        animationDelay: `${Math.random() * 2}s`
+                    }}
+                />
+            ))}
+            <style>{`
+        @keyframes fall {
+          0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+          100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+        }
+        .animate-fall { animation: fall linear forwards; }
+      `}</style>
         </div>
     );
 };
 
 const MusicPlayer = () => {
-    const [isPlaying, setIsPlaying] = useState(false);
-    const audioRef = useRef<HTMLAudioElement | null>(null);
+    const [playing, setPlaying] = useState(false);
+    const audioRef = useRef<HTMLAudioElement>(null);
 
-    useEffect(() => {
-        audioRef.current = new Audio("https://cdn.pixabay.com/download/audio/2022/11/22/audio_febc508520.mp3?filename=christmas-magic-127024.mp3");
-        audioRef.current.loop = true;
-        audioRef.current.volume = 0.3;
-
-        return () => {
-            if (audioRef.current) {
-                audioRef.current.pause();
-                audioRef.current = null;
-            }
-        };
-    }, []);
-
-    const togglePlay = () => {
+    const toggle = () => {
         if (audioRef.current) {
-            if (isPlaying) {
-                audioRef.current.pause();
-            } else {
-                audioRef.current.play().catch(e => console.log("Audio play failed:", e));
-            }
-            setIsPlaying(!isPlaying);
+            if (playing) audioRef.current.pause();
+            else audioRef.current.play().catch(e => console.log("Autoplay blocked"));
+            setPlaying(!playing);
         }
     };
 
     return (
-        <button
-            onClick={togglePlay}
-            className="fixed bottom-6 right-6 z-50 p-4 rounded-full bg-black/50 backdrop-blur-md border border-white/10 hover:bg-white/10 transition-all shadow-xl group"
-        >
-            {isPlaying ? (
-                <div className="relative">
-                    <Volume2 className="w-6 h-6 text-green-400" />
-                    <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-                    </span>
-                </div>
-            ) : (
-                <VolumeX className="w-6 h-6 text-gray-400 group-hover:text-white" />
-            )}
-        </button>
-    );
-};
-
-const AffiliateDashboard = () => {
-    return (
-        <div className="glass-panel p-6 rounded-2xl border border-white/10 bg-white/5 mt-12">
-            <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold flex items-center gap-2">
-                    <BarChart3 className="text-green-500" /> Panel de Afiliados PRO
-                </h2>
-                <span className="px-3 py-1 rounded-full bg-green-500/20 text-green-400 text-sm font-medium">
-                    Nivel: Socio
-                </span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-                <div className="p-4 rounded-xl bg-black/40 border border-white/5">
-                    <p className="text-gray-400 text-sm mb-1">Ingresos Totales</p>
-                    <p className="text-2xl font-bold text-white">$1,250.00 USD</p>
-                </div>
-                <div className="p-4 rounded-xl bg-black/40 border border-white/5">
-                    <p className="text-gray-400 text-sm mb-1">Clicks en Link</p>
-                    <p className="text-2xl font-bold text-white">3,420</p>
-                </div>
-                <div className="p-4 rounded-xl bg-black/40 border border-white/5">
-                    <p className="text-gray-400 text-sm mb-1">Próximo Pago (Viernes)</p>
-                    <p className="text-2xl font-bold text-green-400">$320.00 USD</p>
-                </div>
-            </div>
-
-            <div className="space-y-4">
-                <div className="p-4 rounded-xl bg-gradient-to-r from-purple-900/20 to-blue-900/20 border border-white/10">
-                    <p className="text-sm text-gray-300 mb-2">Tu Link Viral (30% Comisión)</p>
-                    <div className="flex gap-2">
-                        <code className="flex-1 bg-black/50 p-3 rounded-lg text-blue-300 font-mono text-sm">
-                            aistudio.com/r/SOCIO-LATAM-001
-                        </code>
-                        <button
-                            onClick={() => {
-                                navigator.clipboard.writeText("aistudio.com/r/SOCIO-LATAM-001");
-                                alert("Link copiado!");
-                            }}
-                            className="p-3 bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors"
-                        >
-                            <LinkIcon className="w-4 h-4" />
-                        </button>
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-4 text-sm text-gray-400">
-                    <span>Pagos vía:</span>
-                    <div className="flex gap-2">
-                        <span className="px-2 py-1 bg-white/5 rounded">PayPal</span>
-                        <span className="px-2 py-1 bg-white/5 rounded">Stripe</span>
-                        <span className="px-2 py-1 bg-white/5 rounded">OXXO</span>
-                        <span className="px-2 py-1 bg-white/5 rounded">Crypto</span>
-                    </div>
-                </div>
-            </div>
+        <div className="fixed bottom-6 left-6 z-50 animate-fadeIn">
+            <audio ref={audioRef} src={MUSIC_URL} loop />
+            <button
+                onClick={toggle}
+                className={`p-3 rounded-full shadow-lg border border-neutral-700 transition-all duration-500 hover:scale-110 flex items-center gap-2 ${playing ? 'bg-gradient-to-r from-green-600 to-green-500 text-white animate-pulse' : 'bg-neutral-900 text-neutral-400'}`}
+            >
+                <Music size={20} className={playing ? 'animate-spin-slow' : ''} />
+                {playing && <span className="text-xs font-bold pr-1">Radio Navidad</span>}
+            </button>
+            <style>{`
+        .animate-spin-slow { animation: spin 4s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+      `}</style>
         </div>
     );
 };
 
-// --- MAIN PAGE COMPONENT ---
+// --- COMPONENTE PRINCIPAL ---
 
-export default function ChristmasApp() {
-    const [prompt, setPrompt] = useState("");
-    const [loading, setLoading] = useState(false);
-    const [generatedImage, setGeneratedImage] = useState<string | null>(null);
-    const [selectedSubject, setSelectedSubject] = useState("person");
-    const [familyCount, setFamilyCount] = useState(3);
-    const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
-    const [showDisclaimer, setShowDisclaimer] = useState(false);
-    const [activeTab, setActiveTab] = useState("generator"); // generator, prompts, affiliates
+export default function ChristmasPage() {
+    const [lang, setLang] = useState<'es' | 'en'>('es');
+    const [view, setView] = useState('home');
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [scrolled, setScrolled] = useState(false);
+    const [showConfetti, setShowConfetti] = useState(false);
+    const t = TRANSLATIONS[lang];
 
-    const handleGenerate = async () => {
-        if (!disclaimerAccepted) {
-            setShowDisclaimer(true);
-            return;
-        }
+    // Hooks
+    const { user, isLoaded, isSignedIn } = useUser();
+    const router = useRouter();
+    const searchParams = useSearchParams();
 
-        setLoading(true);
-        setGeneratedImage(null);
+    // Estado para Misión
+    const [missionOpen, setMissionOpen] = useState(false);
 
-        try {
-            const response = await fetch("/api/generate", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    prompt: `${prompt} --subject ${selectedSubject} ${selectedSubject === 'family' ? `--count ${familyCount}` : ''}`
-                }),
-            });
+    // Generador de Estado
+    const [subjectType, setSubjectType] = useState(SUBJECTS[0].id);
+    const [subjectQty, setSubjectQty] = useState(1);
+    const [selectedStyle, setSelectedStyle] = useState(ESTILOS[0].id);
+    const currentSubject = SUBJECTS.find(s => s.id === subjectType) || SUBJECTS[0];
 
-            const data = await response.json();
 
-            if (response.ok && data.output) {
-                setGeneratedImage(Array.isArray(data.output) ? data.output[0] : data.output);
-                confetti({
-                    particleCount: 100,
-                    spread: 70,
-                    origin: { y: 0.6 },
-                    colors: ['#ef4444', '#22c55e', '#ffffff']
-                });
-            } else {
-                alert("Error generating image. Please try again.");
+    useEffect(() => {
+        // --- SEGURIDAD ANTI-HACKING & SEO ---
+        document.title = lang === 'es' ? "Estudio Navideño IA | Fotos Familiares & Mascotas" : "AI Christmas Studio | Family & Pet Photos";
+
+        const handleContextMenu = (e: MouseEvent) => e.preventDefault();
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (
+                e.key === "F12" ||
+                (e.ctrlKey && (e.key === "u" || e.key === "U" || e.key === "s" || e.key === "S" || e.key === "c" || e.key === "C"))
+            ) {
+                e.preventDefault();
+                alert(lang === 'es' ? "⚠️ Seguridad Activada: Contenido Protegido por Nano Banana Shield." : "⚠️ Security Alert: Content Protected by Nano Banana Shield.");
             }
-        } catch (error) {
-            console.error(error);
-            alert("Error generating image.");
-        } finally {
-            setLoading(false);
-        }
+        };
+
+        document.addEventListener("contextmenu", handleContextMenu);
+        document.addEventListener("keydown", handleKeyDown);
+
+        const handleScroll = () => setScrolled(window.scrollY > 50);
+        window.addEventListener('scroll', handleScroll);
+        const timer = setTimeout(() => { if (view === 'home') setMissionOpen(true); }, 8000);
+
+        return () => {
+            document.removeEventListener("contextmenu", handleContextMenu);
+            document.removeEventListener("keydown", handleKeyDown);
+            window.removeEventListener('scroll', handleScroll);
+            clearTimeout(timer);
+        };
+    }, [lang, view]);
+
+    // Trigger confetti helper
+    const triggerCelebration = () => {
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 5000);
     };
 
-    return (
-        <div className="min-h-screen bg-black text-white font-sans selection:bg-red-500/30">
-            <MusicPlayer />
+    const PromptGalleryView = () => {
+        const [copiedId, setCopiedId] = useState<number | null>(null);
+        const copyToClipboard = (text: string, id: number) => {
+            try {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                setCopiedId(id);
+            } catch (err) {
+                console.error('Failed to copy text: ', err);
+                alert(lang === 'es' ? "Error al copiar. Por favor, hazlo manualmente." : "Copy error. Please copy manually.");
+            }
+            setTimeout(() => setCopiedId(null), 2000);
+        };
 
-            {/* Navigation */}
-            <nav className="fixed top-0 w-full z-40 bg-black/50 backdrop-blur-lg border-b border-white/10">
-                <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-                    <div className="flex items-center gap-2 font-bold text-xl">
-                        <Sparkles className="text-red-500" />
-                        <span>Nexora<span className="text-green-500">XMAS</span></span>
+        return (
+            <div className="pt-32 pb-20 container mx-auto px-6 animate-fadeIn">
+                <div className="text-center mb-12">
+                    <h2 className="text-4xl font-bold mb-4 flex items-center justify-center gap-2">
+                        <Terminal className="text-rose-500" /> {t.nav.gallery}
+                    </h2>
+                </div>
+                <div className="grid md:grid-cols-2 gap-8">
+                    {MEGA_PROMPTS.map((item) => (
+                        <div key={item.id} className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden group hover:border-rose-500 transition-colors shadow-lg hover:shadow-rose-900/20">
+                            <div className="relative aspect-video">
+                                <img src={item.img} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                <div className="absolute top-2 right-2 bg-black/60 backdrop-blur px-2 py-1 rounded text-xs font-bold text-white">VIP</div>
+                            </div>
+                            <div className="p-6">
+                                <h3 className="text-xl font-bold text-white mb-2">{item.title}</h3>
+                                <div className="bg-neutral-950 p-4 rounded-lg border border-neutral-800 mb-4 font-mono text-xs text-green-400 overflow-x-auto whitespace-pre-wrap">
+                                    {item.prompt}
+                                </div>
+                                <button
+                                    onClick={() => copyToClipboard(item.prompt, item.id)}
+                                    className={`w-full py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-all ${copiedId === item.id ? 'bg-green-600 text-white' : 'bg-neutral-800 hover:bg-neutral-700 text-white'}`}
+                                >
+                                    {copiedId === item.id ? <Check size={18} /> : <Copy size={18} />}
+                                    {copiedId === item.id ? "Copiado" : "Copiar Prompt"}
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    };
+
+    const AffiliateDashboard = () => {
+        const transactions = [
+            { date: "Hoy, 10:42 AM", pack: "Pack 'Santa Latino'", comm: "$14.70", status: "approved" },
+            { date: "Ayer, 3:00 PM", pack: "Pack 'Elfo'", comm: "$0.00", status: "ineligible" },
+            { date: "2 días atrás", pack: "Pack 'Familión'", comm: "$26.70", status: "pending" },
+        ];
+
+        return (
+            <div className="pt-32 pb-20 container mx-auto px-6 animate-fadeIn">
+                <div className="flex flex-col md:flex-row justify-between items-end mb-8 gap-4">
+                    <div>
+                        <h2 className="text-4xl font-bold mb-2 flex items-center gap-3 text-white">{t.affiliate.dashboard_title}</h2>
+                        <p className="text-rose-400 font-medium text-sm border-l-2 border-rose-500 pl-3 bg-rose-900/10 py-1 pr-3 inline-block rounded-r">
+                            <AlertTriangle size={14} className="inline mr-1 mb-0.5" /> {t.affiliate.rule_highlight}
+                        </p>
                     </div>
-                    <div className="flex gap-4 text-sm font-medium">
+                    <div className="text-right">
+                        <div className="text-sm text-neutral-500 mb-1">ID: SOCIO-LATAM-001</div>
+                        <button className="bg-rose-600 text-white px-4 py-2 rounded font-bold text-sm hover:bg-rose-700">Configurar Pagos</button>
+                    </div>
+                </div>
+                <div className="grid md:grid-cols-4 gap-6 mb-12">
+                    {[
+                        { icon: <Users size={20} />, label: t.affiliate.stats_clicks, val: "2,543", color: "blue" },
+                        { icon: <Check size={20} />, label: t.affiliate.stats_sales, val: "142", color: "purple" },
+                        { icon: <Wallet size={20} />, label: t.affiliate.stats_earnings, val: "$840.50", color: "green" },
+                        { icon: <PieChart size={20} />, label: "Conv.", val: "5.6%", color: "rose" },
+                    ].map((stat, i) => (
+                        <div key={i} className="bg-neutral-900 p-6 rounded-xl border border-neutral-800 shadow-lg">
+                            <div className={`p-2 bg-gradient-to-r from-${stat.color}-900/20 to-transparent rounded text-${stat.color}-500 w-fit mb-4`}>{stat.icon}</div>
+                            <p className="text-sm text-neutral-500 uppercase font-bold tracking-wider">{stat.label}</p>
+                            <p className="text-3xl font-bold text-white mt-1">{stat.val}</p>
+                        </div>
+                    ))}
+                </div>
+
+                {/* Link Viral Section */}
+                <div className="bg-neutral-900 border border-neutral-800 p-6 rounded-xl mb-8">
+                    <h3 className="font-bold text-white mb-3 flex items-center gap-2"><LinkIcon size={16} /> {t.affiliate.link_label}</h3>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                        <div className="flex-1 bg-neutral-950 border border-neutral-700 p-3 rounded-lg font-mono text-sm text-yellow-400 overflow-x-auto whitespace-nowrap">
+                            aistudio.com/r/SOCIO-LATAM-001
+                        </div>
                         <button
-                            onClick={() => setActiveTab("generator")}
-                            className={cn("hover:text-red-400 transition-colors", activeTab === "generator" && "text-red-500")}
+                            onClick={() => navigator.clipboard.writeText('aistudio.com/r/SOCIO-LATAM-001')}
+                            className="bg-rose-600 text-white px-4 py-3 rounded-lg font-bold hover:bg-rose-700 transition-colors flex items-center justify-center gap-2"
                         >
-                            Estudio
-                        </button>
-                        <button
-                            onClick={() => setActiveTab("prompts")}
-                            className={cn("hover:text-red-400 transition-colors", activeTab === "prompts" && "text-red-500")}
-                        >
-                            Galería VIP
-                        </button>
-                        <button
-                            onClick={() => setActiveTab("affiliates")}
-                            className={cn("hover:text-red-400 transition-colors", activeTab === "affiliates" && "text-red-500")}
-                        >
-                            Afiliados PRO
+                            <Copy size={16} /> {t.affiliate.copy_btn}
                         </button>
                     </div>
                 </div>
-            </nav>
 
-            {/* Main Content */}
-            <main className="pt-24 pb-12 px-4 max-w-5xl mx-auto relative">
+                {/* Transaction Table */}
+                <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden shadow-2xl mb-8">
+                    <div className="p-6 border-b border-neutral-800"><h3 className="font-bold text-white flex items-center gap-2"><RefreshCw size={16} /> {t.affiliate.table_title}</h3></div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-left">
+                            <thead className="bg-neutral-950 text-neutral-400 uppercase font-bold text-xs">
+                                <tr><th className="px-6 py-4">Fecha</th><th className="px-6 py-4">Pack</th><th className="px-6 py-4">Comisión</th><th className="px-6 py-4">Estado</th></tr>
+                            </thead>
+                            <tbody className="divide-y divide-neutral-800 text-neutral-300">
+                                {transactions.map((row, i) => (
+                                    <tr key={i} className="hover:bg-neutral-800/50">
+                                        <td className="px-6 py-4">{row.date}</td><td className="px-6 py-4">{row.pack}</td>
+                                        <td className={`px-6 py-4 font-bold ${row.comm === "$0.00" ? 'text-neutral-500' : 'text-green-400'}`}>{row.comm}</td>
+                                        <td className="px-6 py-4">
+                                            <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${row.status === 'approved' ? 'bg-green-900/30 text-green-500' :
+                                                row.status === 'pending' ? 'bg-yellow-900/30 text-yellow-500' :
+                                                    'bg-neutral-700/30 text-neutral-400'
+                                                }`}>
+                                                {row.status === 'approved' ? 'Aprobado' : row.status === 'pending' ? 'Pendiente' : 'No Califica'}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        );
+    };
 
-                {activeTab === "generator" && (
-                    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
-                        <TypewriterHero />
+    const HomeView = () => {
+        const [uploading, setUploading] = useState(false);
+        const [uploaded, setUploaded] = useState(false);
+        const [voiceActive, setVoiceActive] = useState(false);
+        const [voiceText, setVoiceText] = useState("");
+        const [generating, setGenerating] = useState(false);
+        const [generated, setGenerated] = useState(false);
+        const [paid, setPaid] = useState(false);
+        const [paying, setPaying] = useState(false);
+        const [generatedImages, setGeneratedImages] = useState<string[]>([]);
+        const fileInputRef = useRef<HTMLInputElement>(null);
 
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                            {/* Left Column: Controls */}
-                            <div className="space-y-6">
+        // Live Photo State
+        const [playingStates, setPlayingStates] = useState<Record<number, boolean>>({ 0: false, 1: false, 2: false, 3: false });
 
-                                {/* Upload Section */}
-                                <div className="p-8 border-2 border-dashed border-white/20 rounded-2xl hover:border-red-500/50 transition-colors cursor-pointer group bg-white/5">
-                                    <div className="flex flex-col items-center gap-4 text-gray-400 group-hover:text-white">
-                                        <div className="p-4 rounded-full bg-white/5 group-hover:bg-red-500/20 transition-colors">
-                                            <Upload className="w-8 h-8" />
-                                        </div>
-                                        <p className="text-center">
-                                            Arrastra 1-5 fotos aquí<br />
-                                            <span className="text-xs opacity-60">Soporta JPG, PNG (Max 10MB)</span>
-                                        </p>
-                                    </div>
-                                </div>
+        // Affiliate Tracking
+        useEffect(() => {
+            const ref = searchParams.get('ref');
+            if (ref) {
+                localStorage.setItem('affiliate_ref', ref);
+            }
+        }, [searchParams]);
 
-                                {/* Subject Selector */}
-                                <div className="space-y-3">
-                                    <label className="text-sm font-medium text-gray-400">¿Quién es el protagonista?</label>
-                                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-                                        {SUBJECTS.map((s) => (
-                                            <button
-                                                key={s.id}
-                                                onClick={() => setSelectedSubject(s.id)}
-                                                className={cn(
-                                                    "flex flex-col items-center gap-2 p-3 rounded-xl border transition-all text-xs font-medium",
-                                                    selectedSubject === s.id
-                                                        ? "bg-red-500/20 border-red-500 text-white"
-                                                        : "bg-white/5 border-transparent hover:bg-white/10 text-gray-400"
-                                                )}
-                                            >
-                                                {s.icon}
-                                                {s.label}
-                                            </button>
-                                        ))}
-                                    </div>
+        // Check for payment success
+        useEffect(() => {
+            if (searchParams.get('success') === 'true') {
+                setPaid(true);
+                triggerCelebration();
+                // Clear params
+                router.replace('/christmas');
+            }
+        }, []);
 
-                                    {selectedSubject === 'family' && (
-                                        <div className="pt-2 animate-in fade-in">
-                                            <div className="flex justify-between text-sm mb-2">
-                                                <span>Miembros de la familia</span>
-                                                <span className="text-red-400">{familyCount} personas</span>
-                                            </div>
-                                            <input
-                                                type="range"
-                                                min="3"
-                                                max="10"
-                                                value={familyCount}
-                                                onChange={(e) => setFamilyCount(parseInt(e.target.value))}
-                                                className="w-full accent-red-500"
-                                            />
-                                        </div>
-                                    )}
-                                </div>
+        const togglePlay = (index: number) => {
+            setPlayingStates(prev => ({ ...prev, [index]: !prev[index] }));
+        };
 
-                                {/* Prompt Input */}
-                                <div className="space-y-3">
-                                    <label className="text-sm font-medium text-gray-400">Describe tu escenario mágico</label>
-                                    <div className="relative">
-                                        <textarea
-                                            value={prompt}
-                                            onChange={(e) => setPrompt(e.target.value)}
-                                            placeholder="Ej: Un perro Husky siberiano con gorro de santa en Times Square..."
-                                            className="w-full bg-white/5 border border-white/10 rounded-xl p-4 pr-12 text-lg focus:ring-2 focus:ring-red-500 outline-none min-h-[120px] resize-none"
-                                        />
-                                        <VoiceDirector onPromptChange={setPrompt} />
-                                    </div>
-                                </div>
+        const handleUploadClick = () => {
+            fileInputRef.current?.click();
+        };
 
-                                {/* Disclaimer Checkbox */}
-                                <div className="flex items-start gap-3 p-4 bg-yellow-500/10 rounded-xl border border-yellow-500/20">
-                                    <div className="pt-1">
-                                        <input
-                                            type="checkbox"
-                                            id="disclaimer"
-                                            checked={disclaimerAccepted}
-                                            onChange={(e) => setDisclaimerAccepted(e.target.checked)}
-                                            className="w-4 h-4 rounded border-gray-600 text-red-500 focus:ring-red-500 bg-transparent"
-                                        />
-                                    </div>
-                                    <label htmlFor="disclaimer" className="text-xs text-gray-300 cursor-pointer">
-                                        Acepto total responsabilidad por el uso de las imágenes generadas. Prohibido contenido ilegal o explícito. AI Studio no se hace responsable.
-                                    </label>
-                                </div>
+        const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+            if (!e.target.files || e.target.files.length === 0) return;
 
-                                <button
-                                    onClick={handleGenerate}
-                                    disabled={loading}
-                                    className={cn(
-                                        "w-full py-4 rounded-xl font-bold text-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-lg",
-                                        loading
-                                            ? "bg-gray-800 cursor-not-allowed text-gray-500"
-                                            : "bg-gradient-to-r from-red-600 to-green-600 hover:from-red-500 hover:to-green-500 shadow-red-900/20"
-                                    )}
-                                >
-                                    {loading ? (
-                                        <span className="flex items-center justify-center gap-2">
-                                            <span className="animate-spin">❄️</span> Generando Magia...
-                                        </span>
-                                    ) : (
-                                        "Generar Foto Navideña ✨"
-                                    )}
+            setUploading(true);
+            const file = e.target.files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('userId', user?.id || 'guest_' + Date.now());
+
+            try {
+                const res = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    setUploaded(true);
+                    // Optionally store the uploaded URL to send to generation API
+                } else {
+                    console.error("Upload failed:", data.error);
+                    alert(lang === 'es' ? "Error al subir. Intenta de nuevo." : "Upload failed. Try again.");
+                }
+            } catch (err) {
+                console.error("Upload error:", err);
+                alert("Error uploading file.");
+            } finally {
+                setUploading(false);
+            }
+        };
+
+        const handleVoiceInput = () => {
+            setVoiceActive(true);
+            setVoiceText(t.generator.voice_listening);
+            setTimeout(() => {
+                setVoiceActive(false);
+                setVoiceText("Añadir nieve extra, luces cálidas y un ambiente muy festivo.");
+            }, 3000);
+        };
+
+        const handleGen = async () => {
+            setGenerating(true);
+
+            try {
+                const promptText = `Christmas photo of ${subjectType} (${subjectQty}), style: ${ESTILOS.find(e => e.id === selectedStyle)?.name || 'Christmas'}, ${voiceText || 'festive atmosphere'}, photorealistic, 8k, highly detailed`;
+
+                const response = await fetch("/api/generate", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        prompt: promptText
+                    }),
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.output) {
+                    // Replicate returns an array or string depending on model, Flux usually returns array
+                    const outputs = Array.isArray(data.output) ? data.output : [data.output];
+
+                    // If we only got 1 image, duplicate it to fill the grid or just show it
+                    // For the grid of 4, we'll repeat it or use placeholders if needed
+                    // But "Nothing Fake", so let's just show what we got.
+                    // If we want 4, we'd need to call API 4 times or request 4 outputs (Flux-Schnell usually 1)
+                    // We'll fill the array with the result.
+                    const newImages = [...outputs, ...outputs, ...outputs, ...outputs].slice(0, 4);
+
+                    setGeneratedImages(newImages);
+                    setGenerated(true);
+                    triggerCelebration();
+                } else {
+                    throw new Error(data.error || "Generation failed");
+                }
+            } catch (e) {
+                console.error("Generation failed", e);
+                alert(lang === 'es' ? "Error generando imagen. Intenta de nuevo." : "Generation failed. Try again.");
+            } finally {
+                setGenerating(false);
+            }
+        };
+
+        const handlePayment = async (packId: string = 'pack_b') => {
+            if (!isLoaded) return;
+
+            if (!isSignedIn) {
+                alert("Please sign in to purchase credits!");
+                // Redirect to login (Clerk handles this usually, or we can push to sign-in)
+                // router.push('/sign-in'); 
+                return;
+            }
+
+            setPaying(true);
+
+            try {
+                const response = await fetch('/api/payment', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        packId: packId,
+                        userId: user.id,
+                        userEmail: user.primaryEmailAddress?.emailAddress
+                    }),
+                });
+
+                const data = await response.json();
+
+                if (data.url) {
+                    window.location.href = data.url;
+                } else {
+                    console.error('Payment error:', data.error);
+                    alert('Payment initialization failed. Please try again.');
+                    setPaying(false);
+                }
+            } catch (error) {
+                console.error('Payment error:', error);
+                alert('An error occurred. Please try again.');
+                setPaying(false);
+            }
+        };
+
+        const handleDownload = async () => {
+            if (!generatedImages.length) return;
+
+            // Download all images
+            for (let i = 0; i < generatedImages.length; i++) {
+                try {
+                    const response = await fetch(generatedImages[i]);
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = `nexora-christmas-${i + 1}.webp`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                } catch (e) {
+                    console.error("Download failed", e);
+                }
+            }
+        };
+
+        return (
+            <div className="animate-fadeIn">
+                {/* Hero */}
+                <header className="relative min-h-[90vh] flex items-center justify-center pt-24 pb-12 overflow-hidden">
+                    <div className="absolute inset-0 z-0">
+                        <img src="https://images.unsplash.com/photo-1512389142860-9c449e58a543?auto=format&fit=crop&q=80&w=2000" alt="Background" className="w-full h-full object-cover opacity-20" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-neutral-950 via-neutral-950/80 to-transparent" />
+                        <div className="absolute inset-0 pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/snow.png')] opacity-30 animate-pulse"></div>
+                    </div>
+
+                    <div className="container mx-auto px-6 relative z-10 grid lg:grid-cols-2 gap-12 items-center">
+                        <div className="text-center lg:text-left">
+                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gradient-to-r from-rose-900/50 to-rose-800/50 border border-rose-500/30 text-rose-300 text-xs font-bold uppercase tracking-wider mb-6">
+                                <Globe size={12} /> {t.hero.badge}
+                            </div>
+                            <h1 className="text-5xl md:text-7xl font-bold mb-6 tracking-tighter text-white leading-tight min-h-[160px] md:min-h-[180px]">
+                                {t.hero.title} <br />
+                                <Typewriter texts={t.hero.subtitles} />
+                            </h1>
+                            <p className="text-neutral-400 text-lg mb-8 leading-relaxed max-w-xl mx-auto lg:mx-0">
+                                {t.hero.desc}
+                            </p>
+
+                            <div className="flex gap-4 justify-center lg:justify-start">
+                                <button className="px-6 py-3 bg-white text-black font-bold rounded-full flex items-center gap-2 hover:bg-neutral-200 transition-colors shadow-lg hover:shadow-white/20">
+                                    <Mic size={18} /> {t.hero.cta_primary}
+                                </button>
+                                <button onClick={() => setView('gallery')} className="px-6 py-3 border border-neutral-700 text-white font-bold rounded-full hover:bg-neutral-900 transition-colors flex items-center gap-2">
+                                    <Terminal size={18} /> {t.hero.cta_secondary}
                                 </button>
                             </div>
+                        </div>
 
-                            {/* Right Column: Preview */}
-                            <div className="relative h-full min-h-[400px] bg-black/40 rounded-3xl border border-white/10 overflow-hidden flex items-center justify-center">
-                                {generatedImage ? (
-                                    <div className="relative w-full h-full group">
-                                        <Image
-                                            src={generatedImage}
-                                            alt="Generated"
-                                            fill
-                                            className="object-cover"
-                                        />
-                                        {/* Watermark Overlay */}
-                                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-40">
-                                            <p className="text-4xl font-black text-white rotate-[-45deg] tracking-widest border-4 border-white p-4">
-                                                AI STUDIO PREVIEW
-                                            </p>
+                        <div className="bg-neutral-900/80 backdrop-blur-md border border-neutral-800 rounded-2xl p-6 shadow-2xl relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 bg-gradient-to-bl from-yellow-500 to-orange-500 text-black text-[10px] font-bold px-3 py-1 rounded-bl-lg z-20 flex items-center gap-1 shadow-lg">
+                                <Zap size={10} fill="black" /> AI DIRECTOR
+                            </div>
+
+                            {generated ? (
+                                <div className="text-center animate-fadeIn">
+                                    <div className="grid grid-cols-2 gap-3 mb-6">
+                                        {generatedImages.map((imgUrl, i) => (
+                                            <div key={i} className="aspect-[4/5] rounded-lg overflow-hidden relative bg-neutral-800 group/item cursor-pointer" onClick={() => togglePlay(i)}>
+                                                {/* Live Photo Effect simulation */}
+                                                <img
+                                                    src={imgUrl}
+                                                    alt={`Generated Christmas Photo ${i}`}
+                                                    className={`w-full h-full object-cover transition-transform duration-[5s] ease-in-out ${playingStates[i] ? 'scale-125' : 'scale-100'} ${!paid ? 'blur-[2px] grayscale' : ''}`}
+                                                />
+                                                {!paid && <div className="absolute inset-0 flex items-center justify-center bg-black/40"><Lock size={24} className="text-white/50" /></div>}
+
+                                                {/* Play Button Overlay */}
+                                                {paid && (
+                                                    <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 ${playingStates[i] ? 'opacity-0 hover:opacity-100' : 'opacity-100'}`}>
+                                                        <div className="bg-black/40 backdrop-blur p-3 rounded-full text-white">
+                                                            {playingStates[i] ? <Pause size={24} fill="white" /> : <Play size={24} fill="white" className="ml-1" />}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {playingStates[i] && paid && <div className="absolute top-2 right-2 px-2 py-0.5 bg-red-600 text-white text-[8px] font-bold rounded uppercase animate-pulse">Live</div>}
+                                                {!paid && <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden"><div className="w-[150%] h-12 bg-white/10 backdrop-blur-sm -rotate-45 flex items-center justify-center border-y border-white/20"><span className="text-white/50 font-black text-xl tracking-[0.2em] uppercase whitespace-nowrap">{t.generator.watermark_text}</span></div></div>}
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {!paid ? (
+                                        <button onClick={() => handlePayment('pack_b')} disabled={paying} className="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(225,29,72,0.4)]">
+                                            {paying ? <><Loader2 className="animate-spin" /> {t.generator.processing_payment}</> : <><CreditCard size={20} /> {t.generator.btn_pay}</>}
+                                        </button>
+                                    ) : (
+                                        <button onClick={handleDownload} className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(34,197,94,0.4)]">
+                                            <Download size={20} /> {t.generator.btn_download}
+                                        </button>
+                                    )}
+                                </div>
+                            ) : (
+                                <>
+                                    {!uploaded ? (
+                                        <div
+                                            onClick={handleUploadClick}
+                                            className="border-2 border-dashed border-neutral-700 rounded-xl p-8 text-center mb-6 cursor-pointer hover:bg-neutral-800 hover:border-rose-500 transition-all group/upload"
+                                        >
+                                            <input
+                                                type="file"
+                                                ref={fileInputRef}
+                                                onChange={handleFileChange}
+                                                className="hidden"
+                                                accept="image/*"
+                                            />
+                                            {uploading ? (
+                                                <div className="py-4">
+                                                    <Loader2 size={32} className="mx-auto mb-2 text-rose-500 animate-spin" />
+                                                    <p className="text-sm font-bold text-white">{t.generator.uploading}</p>
+                                                    <div className="w-full max-w-[200px] mx-auto h-1 bg-neutral-800 rounded-full mt-3 overflow-hidden">
+                                                        <div className="h-full bg-rose-500 animate-progress"></div>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <Upload size={32} className="mx-auto mb-2 text-neutral-500 group-hover/upload:text-rose-500 transition-colors" />
+                                                    <p className="text-sm font-bold text-white">{t.generator.step1}</p>
+                                                    <p className="text-xs text-neutral-500">{t.generator.step1_desc}</p>
+                                                </>
+                                            )}
                                         </div>
+                                    ) : (
+                                        <div className="space-y-5 mb-6 animate-fadeIn">
+                                            <div className="flex items-center justify-between bg-green-900/20 p-3 rounded-lg border border-green-900/50">
+                                                <span className="text-xs font-bold text-green-400 flex items-center gap-2"><Check size={12} /> 3 Fotos Subidas</span>
+                                                <button onClick={() => setUploaded(false)} className="text-[10px] text-neutral-400 hover:text-white underline">Cambiar</button>
+                                            </div>
 
-                                        {/* Controls Overlay */}
-                                        <div className="absolute bottom-0 left-0 w-full p-6 bg-gradient-to-t from-black/90 to-transparent translate-y-full group-hover:translate-y-0 transition-transform duration-300">
-                                            <div className="flex gap-3">
-                                                <button className="flex-1 py-3 bg-white text-black font-bold rounded-xl hover:bg-gray-200 transition-colors flex items-center justify-center gap-2">
-                                                    <CreditCard className="w-4 h-4" />
-                                                    Desbloquear ($49)
-                                                </button>
-                                                <button className="p-3 bg-white/10 hover:bg-white/20 rounded-xl backdrop-blur-md transition-colors">
-                                                    <Share2 className="w-5 h-5" />
-                                                </button>
+                                            {/* Suject Selector (Humano+Mascota) */}
+                                            <div>
+                                                <label className="text-xs font-bold text-neutral-500 uppercase mb-2 block">{t.generator.subject_label}</label>
+                                                <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
+                                                    {SUBJECTS.map(s => (
+                                                        <button
+                                                            key={s.id}
+                                                            onClick={() => setSubjectType(s.id)}
+                                                            className={`p-2 rounded-lg border flex flex-col items-center text-xs font-medium transition-all ${subjectType === s.id
+                                                                ? 'bg-rose-800/50 border-rose-500 text-white'
+                                                                : 'bg-neutral-950 border-neutral-700 text-neutral-400 hover:bg-neutral-800'
+                                                                }`}
+                                                        >
+                                                            <s.icon size={16} className="mb-1" />
+                                                            {lang === 'es' ? s.name_es : s.name_en}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* Quantity Slider (Only for Family/Human+Pet/Pet) */}
+                                            {(subjectType !== 'person' && subjectType !== 'couple') && (
+                                                <div className="pt-2">
+                                                    <label className="text-xs font-bold text-neutral-500 uppercase mb-3 block flex justify-between">
+                                                        <span>{t.generator.qty_label}:</span>
+                                                        <span className="text-white">{subjectQty}</span>
+                                                    </label>
+                                                    <input
+                                                        type="range"
+                                                        min={currentSubject.min}
+                                                        max={currentSubject.max}
+                                                        value={subjectQty}
+                                                        onChange={(e) => setSubjectQty(parseInt(e.target.value))}
+                                                        className="w-full h-1 bg-neutral-700 rounded-lg appearance-none cursor-pointer range-lg [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-rose-500"
+                                                    />
+                                                </div>
+                                            )}
+
+                                            {/* Style Selector */}
+                                            <div>
+                                                <label className="text-xs font-bold text-neutral-500 uppercase mb-2 block flex justify-between">
+                                                    {t.generator.style_label}
+                                                    <span className="text-rose-500 flex items-center gap-1"><MapPin size={10} /> LATAM & USA</span>
+                                                </label>
+                                                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                                                    {ESTILOS.map(s => (
+                                                        <div
+                                                            key={s.id}
+                                                            onClick={() => setSelectedStyle(s.id)}
+                                                            className={`min-w-[80px] cursor-pointer group/img relative rounded-lg overflow-hidden border transition-all ${selectedStyle === s.id ? 'border-rose-500 ring-2 ring-rose-500/50' : 'border-neutral-700 hover:border-rose-500'}`}
+                                                        >
+                                                            <img src={s.img} alt="style" className="w-full h-16 object-cover opacity-60 group-hover/img:opacity-100" />
+                                                            <div className="absolute bottom-0 inset-x-0 bg-black/70 text-[8px] text-center text-white py-1">{s.name}</div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* Voice Input Section */}
+                                            <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-3">
+                                                <label className="text-xs font-bold text-neutral-400 uppercase mb-2 block flex items-center gap-2">
+                                                    <Mic size={12} className="text-rose-500" /> {t.generator.voice_label}
+                                                </label>
+                                                <div className="flex gap-2 items-center">
+                                                    <button onClick={handleVoiceInput} className={`p-3 rounded-full transition-all flex-shrink-0 ${voiceActive ? 'bg-rose-600 animate-pulse' : 'bg-neutral-800 hover:bg-neutral-700'}`}>
+                                                        <Mic size={18} className="text-white" />
+                                                    </button>
+                                                    <div className="flex-1 bg-neutral-900 rounded-lg p-2 h-10 flex items-center">
+                                                        {voiceActive ? <VoiceVisualizer /> : <span className="text-sm text-neutral-400 italic truncate">{voiceText || t.generator.voice_placeholder}</span>}
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                ) : (
-                                    <div className="text-center text-gray-600">
-                                        <Gift className="w-16 h-16 mx-auto mb-4 opacity-20" />
-                                        <p>Tu obra maestra aparecerá aquí</p>
-                                    </div>
-                                )}
-                            </div>
+                                    )}
+
+                                    <button
+                                        onClick={handleGen}
+                                        disabled={generating || !uploaded}
+                                        className={`w-full font-bold py-4 rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all ${!uploaded ? 'bg-neutral-800 text-neutral-500 cursor-not-allowed' :
+                                            'bg-gradient-to-r from-rose-600 to-orange-600 hover:from-rose-500 hover:to-orange-500 text-white shadow-rose-900/20'
+                                            }`}
+                                    >
+                                        {generating ? <><Loader2 className="animate-spin" /> {t.generator.btn_processing}</> : <><Sparkles size={20} /> {t.generator.btn_generate}</>}
+                                    </button>
+                                </>
+                            )}
                         </div>
                     </div>
-                )}
+                </header>
 
-                {activeTab === "prompts" && (
-                    <div className="animate-in fade-in zoom-in duration-500">
-                        <h2 className="text-3xl font-bold mb-8 text-center">Galería de Super Prompts VIP</h2>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {VIP_PROMPTS.map((p, i) => (
-                                <div key={i} className="group relative aspect-square rounded-2xl overflow-hidden bg-gray-900 border border-white/10 hover:border-red-500/50 transition-all">
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-80" />
-                                    <div className="absolute bottom-0 p-6 w-full">
-                                        <h3 className="font-bold text-lg mb-2">{p.title}</h3>
-                                        <p className="text-xs text-gray-400 line-clamp-2 mb-4">{p.prompt}</p>
-                                        <button
-                                            onClick={() => {
-                                                setPrompt(p.prompt);
-                                                setActiveTab("generator");
-                                            }}
-                                            className="w-full py-2 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-lg text-sm font-medium transition-colors"
-                                        >
-                                            Usar este Prompt
+                {/* Payment Methods LATAM */}
+                <section className="py-12 bg-neutral-950 border-t border-neutral-900">
+                    <div className="container mx-auto px-6 text-center">
+                        <p className="text-neutral-500 text-sm mb-6 uppercase tracking-widest font-bold">{t.pricing.methods}</p>
+                        <div className="flex flex-wrap justify-center gap-4 opacity-70 grayscale hover:grayscale-0 transition-all duration-500">
+                            <span className="px-4 py-2 bg-white text-black font-black rounded italic">VISA</span>
+                            <span className="px-4 py-2 bg-[#00457C] text-white font-bold rounded">PayPal</span>
+                            <span className="px-4 py-2 bg-[#F6BE00] text-red-600 font-black rounded border-2 border-white">OXXO</span>
+                            <span className="px-4 py-2 bg-[#32BCAD] text-white font-bold rounded">PIX</span>
+                            <span className="px-4 py-2 bg-[#2E3192] text-white font-bold rounded">PSE</span>
+                        </div>
+                    </div>
+                </section>
+                {/* Pricing 10x Upgrade */}
+                <section className="py-24 relative overflow-hidden">
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[600px] bg-rose-600/20 blur-[120px] rounded-full pointer-events-none opacity-20"></div>
+
+                    <div className="container mx-auto px-6 relative z-10">
+                        <div className="text-center mb-16">
+                            <h2 className="text-5xl font-black mb-4 bg-clip-text text-transparent bg-gradient-to-r from-white via-rose-200 to-rose-500">{t.nav.pricing}</h2>
+                            <p className="text-green-400 text-sm font-mono tracking-widest uppercase flex items-center justify-center gap-2">
+                                <MapPin size={14} className="animate-bounce" /> {t.pricing.local_price}
+                            </p>
+                        </div>
+
+                        <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto items-center">
+                            {PACKS.map(pkg => (
+                                <div
+                                    key={pkg.id}
+                                    className={`relative group transition-all duration-500 hover:-translate-y-2 ${pkg.popular
+                                        ? 'bg-neutral-900/80 backdrop-blur-xl border-2 border-rose-500/50 shadow-[0_0_80px_rgba(225,29,72,0.3)] rounded-3xl z-20 scale-110'
+                                        : 'bg-neutral-950/50 backdrop-blur-md border border-white/10 hover:border-white/20 rounded-2xl z-10'
+                                        }`}
+                                >
+                                    {pkg.popular && (
+                                        <div className="absolute -top-5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-rose-600 to-orange-600 text-white text-xs font-black px-6 py-2 rounded-full uppercase tracking-wider shadow-lg flex items-center gap-2">
+                                            <Star size={12} fill="white" /> Más Vendido <Star size={12} fill="white" />
+                                        </div>
+                                    )}
+
+                                    <div className="p-8 flex flex-col h-full">
+                                        <div className="mb-6">
+                                            <h3 className={`font-bold text-lg mb-2 ${pkg.popular ? 'text-rose-400' : 'text-neutral-400'}`}>{pkg.title}</h3>
+                                            <div className="flex items-baseline gap-1">
+                                                <span className="text-5xl font-black text-white tracking-tight">{pkg.price}</span>
+                                                <span className="text-neutral-500 text-sm font-medium">/ pack</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="w-full h-px bg-gradient-to-r from-transparent via-white/10 to-transparent mb-8"></div>
+
+                                        <ul className="space-y-4 mb-8 flex-1">
+                                            {pkg.features.map((f, i) => (
+                                                <li key={i} className="flex items-start gap-3 text-sm text-neutral-300 group-hover:text-white transition-colors">
+                                                    <div className={`mt-0.5 p-1 rounded-full ${pkg.popular ? 'bg-rose-500/20 text-rose-400' : 'bg-neutral-800 text-neutral-500'}`}>
+                                                        <Check size={12} strokeWidth={3} />
+                                                    </div>
+                                                    {f}
+                                                </li>
+                                            ))}
+                                        </ul>
+
+                                        <button onClick={() => handlePayment(pkg.id)} className={`w-full py-4 rounded-xl font-bold text-sm tracking-wide transition-all duration-300 shadow-lg ${pkg.popular
+                                            ? 'bg-gradient-to-r from-rose-600 to-orange-600 hover:from-rose-500 hover:to-orange-500 text-white hover:shadow-rose-500/25 hover:scale-[1.02]'
+                                            : 'bg-white text-black hover:bg-neutral-200'
+                                            }`}>
+                                            Seleccionar Pack
                                         </button>
                                     </div>
                                 </div>
                             ))}
                         </div>
                     </div>
-                )}
+                </section>
+            </div>
+        );
+    };
 
-                {activeTab === "affiliates" && (
-                    <div className="animate-in fade-in slide-in-from-right duration-500">
-                        <AffiliateDashboard />
+    // --- RENDERIZADO PRINCIPAL ---
+    return (
+        <div className="min-h-screen bg-neutral-950 text-neutral-100 font-sans selection:bg-rose-500 selection:text-white overflow-x-hidden">
+            {showConfetti && <Confetti />}
+            <MusicPlayer />
+
+            {/* Mission Modal */}
+            {missionOpen && view === 'home' && (
+                <div className="fixed inset-0 z-[70] bg-black/90 backdrop-blur flex items-center justify-center p-4 animate-fadeIn">
+                    <div className="bg-neutral-900 max-w-sm w-full rounded-2xl border border-yellow-500/30 p-6 relative shadow-[0_0_50px_rgba(234,179,8,0.2)]">
+                        <button onClick={() => setMissionOpen(false)} className="absolute top-3 right-3 text-neutral-500 hover:text-white"><X size={20} /></button>
+                        <div className="text-center">
+                            <div className="inline-block p-4 bg-yellow-500/10 rounded-full text-yellow-500 mb-4 animate-bounce"><Gift size={32} /></div>
+                            <h3 className="text-2xl font-bold text-white mb-2">{t.mission.title}</h3>
+                            <p className="text-neutral-400 text-sm mb-6">{t.mission.desc}</p>
+                            <div className="space-y-3">
+                                <button className="w-full py-3 bg-[#25D366] text-black font-bold rounded-lg flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform"><Smartphone size={18} /> {t.mission.btn_wa}</button>
+                                <button className="w-full py-3 bg-[#1877F2] text-white font-bold rounded-lg flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform"><Facebook size={18} /> {t.mission.btn_fb}</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? 'bg-neutral-950/90 backdrop-blur-md border-b border-neutral-800 py-3' : 'bg-transparent py-6'}`}>
+                <div className="container mx-auto px-6 flex justify-between items-center">
+                    <div className="flex items-center gap-2 cursor-pointer group" onClick={() => setView('home')}>
+                        <div className="bg-rose-600 p-1.5 rounded text-white group-hover:rotate-12 transition-transform">
+                            <Camera size={20} />
+                        </div>
+                        <span className="text-xl font-bold tracking-tight">AI<span className="text-rose-500">STUDIO</span></span>
+                    </div>
+
+                    <div className="hidden md:flex items-center gap-6 text-sm font-medium text-neutral-400">
+                        <button onClick={() => setView('home')} className={`hover:text-white ${view === 'home' ? 'text-white' : ''}`}>{t.nav.create}</button>
+                        <button onClick={() => setView('gallery')} className={`hover:text-white flex gap-1 ${view === 'gallery' ? 'text-rose-400' : ''}`}><Terminal size={14} /> {t.nav.gallery}</button>
+                        <button onClick={() => setView('affiliate')} className={`hover:text-white flex gap-1 ${view === 'affiliate' ? 'text-rose-400' : ''}`}><DollarSign size={14} /> {t.nav.affiliates}</button>
+                        <button onClick={() => setView('admin')} className={`hover:text-white flex gap-1 ${view === 'admin' ? 'text-blue-400' : ''}`}><Shield size={14} /> {t.nav.admin}</button>
+                        <button onClick={() => setLang(l => l === 'es' ? 'en' : 'es')} className="flex items-center gap-2 text-white bg-neutral-800 px-3 py-1.5 rounded-full"><Globe size={14} /> {lang.toUpperCase()}</button>
+                    </div>
+                    <button className="md:hidden text-neutral-100" onClick={() => setIsMenuOpen(!isMenuOpen)}>{isMenuOpen ? <X size={24} /> : <Menu size={24} />}</button>
+                </div>
+            </nav>
+
+            <main className="min-h-screen">
+                {view === 'home' && <HomeView />}
+                {view === 'gallery' && <PromptGalleryView />}
+                {view === 'affiliate' && <AffiliateDashboard />}
+                {view === 'admin' && (
+                    <div className="pt-32 container mx-auto text-center px-6">
+                        <h2 className="text-3xl font-bold mb-4 text-rose-500">{t.nav.admin}</h2>
+                        <p className="text-neutral-500">Acceso Seguro Requerido.</p>
                     </div>
                 )}
-
             </main>
 
-            {/* Disclaimer Modal (Fallback if checkbox missed) */}
-            <AnimatePresence>
-                {showDisclaimer && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
-                    >
-                        <motion.div
-                            initial={{ scale: 0.9, y: 20 }}
-                            animate={{ scale: 1, y: 0 }}
-                            className="bg-gray-900 border border-white/10 p-8 rounded-2xl max-w-md w-full shadow-2xl"
-                        >
-                            <ShieldCheck className="w-12 h-12 text-yellow-500 mb-4 mx-auto" />
-                            <h3 className="text-xl font-bold text-center mb-4">Responsabilidad Legal</h3>
-                            <p className="text-gray-400 text-sm text-center mb-6">
-                                Para continuar, debes aceptar que te haces totalmente responsable por el contenido generado.
-                                AI Studio prohíbe estrictamente la generación de contenido ilegal, ofensivo o explícito.
-                            </p>
-                            <div className="flex gap-3">
-                                <button
-                                    onClick={() => setShowDisclaimer(false)}
-                                    className="flex-1 py-3 bg-gray-800 hover:bg-gray-700 rounded-xl font-medium transition-colors"
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setDisclaimerAccepted(true);
-                                        setShowDisclaimer(false);
-                                    }}
-                                    className="flex-1 py-3 bg-red-600 hover:bg-red-500 rounded-xl font-bold transition-colors"
-                                >
-                                    Acepto
-                                </button>
-                            </div>
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+            <footer className="py-12 bg-neutral-950 border-t border-neutral-900 text-xs text-neutral-500 text-center">
+                <p>&copy; 2025 AI Studio Inc. {t.footer.rights}</p>
+            </footer>
+
+            <style>{`
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fadeIn { animation: fadeIn 0.5s ease-out forwards; }
+        @keyframes progress { 0% { width: 0%; } 100% { width: 100%; } }
+        .animate-progress { animation: progress 2s ease-out forwards; }
+      `}</style>
         </div>
     );
 }
