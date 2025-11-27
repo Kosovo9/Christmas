@@ -5,7 +5,7 @@
 ### 🌐 Live URLs
 
 **Production (Latest)**:  
-https://nexora-qxldhlwwr-neils-projects-8becf3f7.vercel.app
+https://nexora-a658yng17-neils-projects-8becf3f7.vercel.app
 
 **Previous Production**:  
 https://nexora-iw4zmodf4-neils-projects-8becf3f7.vercel.app

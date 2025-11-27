@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useUser } from "@clerk/nextjs";
 import { useRouter, useSearchParams } from "next/navigation";
+import { createClient } from '@/utils/supabase/client';
 
 // --- URL DE MÚSICA (Royalty Free) ---
 const MUSIC_URL = "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Jingle%20Bells.mp3";
@@ -502,6 +503,31 @@ export default function ChristmasPage() {
             }
         }, []);
 
+        // Fetch existing credits
+        useEffect(() => {
+            const checkCredits = async () => {
+                if (!isSignedIn || !user) return;
+
+                try {
+                    const supabase = createClient();
+                    const { data, error } = await supabase
+                        .from('user_credits')
+                        .select('credits')
+                        .eq('user_id', user.id)
+                        .single();
+
+                    if (data && data.credits > 0) {
+                        setPaid(true);
+                        console.log("User has credits:", data.credits);
+                    }
+                } catch (err) {
+                    console.error("Error fetching credits:", err);
+                }
+            };
+
+            checkCredits();
+        }, [isSignedIn, user]);
+
         const togglePlay = (index: number) => {
             setPlayingStates(prev => ({ ...prev, [index]: !prev[index] }));
         };
@@ -515,6 +541,14 @@ export default function ChristmasPage() {
 
             setUploading(true);
             const file = e.target.files[0];
+
+            // 5MB Limit Check
+            if (file.size > 5 * 1024 * 1024) {
+                alert(lang === 'es' ? "El archivo es muy grande (Max 5MB)" : "File too large (Max 5MB)");
+                setUploading(false);
+                return;
+            }
+
             const formData = new FormData();
             formData.append('file', file);
             formData.append('userId', user?.id || 'guest_' + Date.now());

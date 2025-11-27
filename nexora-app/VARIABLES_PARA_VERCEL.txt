@@ -1,0 +1,27 @@
+# 📋 Variables de Entorno para Vercel (Production)
+
+Copia y pega estos valores en: https://vercel.com/tu-usuario/nexora-app/settings/environment-variables
+
+## 1. Supabase (Base de Datos)
+- **NEXT_PUBLIC_SUPABASE_URL**: (Tu URL de Supabase)
+- **NEXT_PUBLIC_SUPABASE_ANON_KEY**: (Tu clave Anon pública - ¡Asegúrate de copiarla bien del dashboard!)
+- **SUPABASE_SERVICE_ROLE_KEY**: (Tu clave Service Role - ¡Secreta!)
+
+## 2. Replicate (IA Generación de Imágenes)
+- **REPLICATE_API_TOKEN**: (Tu token de replicate.com - empieza con r8_...)
+
+## 3. Google Gemini (Chatbot Help Desk)
+- **GOOGLE_GEMINI_API_KEY**: (Tu API Key de Google AI Studio)
+
+## 4. Stripe (Pagos)
+- **NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY**: (pk_live_...)
+- **STRIPE_SECRET_KEY**: (sk_live_...)
+- **STRIPE_WEBHOOK_SECRET**: (whsec_... - Lo obtienes al crear el webhook en Stripe Dashboard)
+
+## 5. Clerk (Autenticación)
+- **NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY**: (pk_test_... o pk_live_...)
+- **CLERK_SECRET_KEY**: (sk_test_... o sk_live_...)
+
+## 6. Otros
+- **NEXT_PUBLIC_APP_URL**: https://tu-dominio-vercel.app
+- **CLOUDFLARE_R2_BUCKET_NAME**: user-uploads (o el nombre que le hayas puesto a tu bucket)
